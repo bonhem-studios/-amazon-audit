@@ -922,7 +922,9 @@ def index():
 
 def process_audit_background(audit_id, saved_files):
     """Run the full audit pipeline in a background thread."""
+    import time
     try:
+        t0 = time.time()
         jobs[audit_id] = {"status": "processing", "step": "Parsing files", "error": None}
 
         # Parse and detect
@@ -930,13 +932,14 @@ def process_audit_background(audit_id, saved_files):
         reports = {}
         for filepath in saved_files:
             try:
+                t1 = time.time()
                 rtype, headers, rows = load_and_detect(filepath)
                 if rtype:
                     max_rows = MAX_ROWS_FREE.get(rtype, 1000)
                     if len(rows) > max_rows:
                         rows = rows[:max_rows]
                     reports[rtype] = {"headers": headers, "rows": rows}
-                    logger.info(f"[{audit_id}] Detected: {rtype} ({len(rows)} rows)")
+                    logger.info(f"[{audit_id}] Detected: {rtype} ({len(rows)} rows) in {time.time()-t1:.1f}s")
             except Exception as e:
                 logger.error(f"[{audit_id}] Error parsing {filepath}: {e}")
 
@@ -944,8 +947,11 @@ def process_audit_background(audit_id, saved_files):
             jobs[audit_id] = {"status": "error", "step": "", "error": "No recognized Amazon reports found in the uploaded files."}
             return
 
+        logger.info(f"[{audit_id}] Parsing done in {time.time()-t0:.1f}s total")
+
         # Summarize
         jobs[audit_id]["step"] = "Cross-referencing data"
+        t2 = time.time()
         logger.info(f"[{audit_id}] Summarizing {len(reports)} reports...")
         summaries = {}
         biz_summary = None
@@ -968,6 +974,7 @@ def process_audit_background(audit_id, saved_files):
 
         flags = compute_cross_report_flags(biz_summary, ppc_summary, inv_summary, ret_summary)
         claude_input = build_claude_input(biz_summary, ppc_summary, inv_summary, ret_summary, flags, list(reports.keys()))
+        logger.info(f"[{audit_id}] Summarization done in {time.time()-t2:.1f}s, input size: {len(claude_input)} chars")
 
         # Call Claude
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -976,9 +983,10 @@ def process_audit_background(audit_id, saved_files):
             return
 
         jobs[audit_id]["step"] = "Analysis"
+        t3 = time.time()
         logger.info(f"[{audit_id}] Calling Claude API...")
         audit_result = call_claude(claude_input)
-        logger.info(f"[{audit_id}] Claude returned {len(audit_result.get('findings', []))} findings")
+        logger.info(f"[{audit_id}] Claude returned {len(audit_result.get('findings', []))} findings in {time.time()-t3:.1f}s")
         increment_daily_count()
 
         # Generate reports
