@@ -309,14 +309,51 @@ input[type="file"] {
     align-items: center;
     justify-content: center;
 }
-.modal-note {
+.modal-link {
+    display: inline-block;
     margin-top: 16px;
+    padding: 10px 20px;
+    background: #1a1a2e;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+.modal-link:hover { background: #374151; }
+.modal-note {
+    margin-top: 12px;
     padding: 12px 14px;
     background: #f8fafc;
     border-radius: 8px;
     font-size: 12px;
     color: #6b7280;
     line-height: 1.5;
+}
+.marketplace-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    color: #6b7280;
+}
+.marketplace-bar select {
+    padding: 6px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 13px;
+    background: white;
+    color: #1a1a2e;
+    cursor: pointer;
+    font-family: inherit;
+}
+.marketplace-bar select:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
 }
 
 /* Progress overlay */
@@ -579,6 +616,21 @@ input[type="file"] {
     </div>
 </div>
 
+<!-- MARKETPLACE SELECTOR (updates all links dynamically) -->
+<div class="marketplace-bar">
+    <label>Your marketplace:</label>
+    <select id="marketplacePicker" onchange="updateMarketplaceLinks()">
+        <option value="de" selected>Amazon.de (Germany)</option>
+        <option value="co.uk">Amazon.co.uk (UK)</option>
+        <option value="fr">Amazon.fr (France)</option>
+        <option value="it">Amazon.it (Italy)</option>
+        <option value="es">Amazon.es (Spain)</option>
+        <option value="nl">Amazon.nl (Netherlands)</option>
+        <option value="com">Amazon.com (US)</option>
+        <option value="ca">Amazon.ca (Canada)</option>
+    </select>
+</div>
+
 <!-- INSTRUCTION MODALS -->
 <div class="modal" id="helpModal1">
     <div class="modal-backdrop" onclick="this.parentElement.classList.remove('active')"></div>
@@ -588,12 +640,13 @@ input[type="file"] {
         <p class="modal-subtitle">Detail Page Sales and Traffic by ASIN</p>
         <ol class="steps">
             <li>Open <strong>Seller Central</strong></li>
-            <li>Go to <strong>Reports</strong> &rarr; <strong>Business Reports</strong></li>
-            <li>In the left sidebar, click <strong>"Detail Page Sales and Traffic by Child Item"</strong></li>
-            <li>Set the date range to <strong>Last 30 Days</strong> (or a full calendar month)</li>
+            <li>Navigate to <strong>Reports</strong> &rarr; <strong>Business Reports</strong></li>
+            <li>In the left sidebar, select <strong>"Detail Page Sales and Traffic"</strong></li>
+            <li>Set the date range to <strong>Last 30 Days</strong></li>
             <li>Click <strong>Download (.csv)</strong></li>
         </ol>
-        <div class="modal-note">This report contains your revenue, sessions, conversion rate, and Buy Box percentage per ASIN.</div>
+        <a class="modal-link" id="link1" href="https://sellercentral.amazon.de/business-reports" target="_blank">Open in Seller Central &rarr;</a>
+        <div class="modal-note">Contains revenue, sessions, conversion rate, and Buy Box percentage per ASIN.</div>
     </div>
 </div>
 
@@ -601,19 +654,18 @@ input[type="file"] {
     <div class="modal-backdrop" onclick="this.parentElement.classList.remove('active')"></div>
     <div class="modal-content">
         <button class="modal-close" onclick="this.parentElement.parentElement.classList.remove('active')">&times;</button>
-        <h3>Sponsored Products Search Term Report</h3>
-        <p class="modal-subtitle">PPC advertising performance by search term</p>
+        <h3>Search Term Report</h3>
+        <p class="modal-subtitle">Sponsored Products advertising performance</p>
         <ol class="steps">
             <li>Open <strong>Seller Central</strong></li>
             <li>Go to <strong>Advertising</strong> &rarr; <strong>Campaign Manager</strong></li>
-            <li>Click the <strong>Reports</strong> tab (top navigation)</li>
-            <li>Click <strong>Create Report</strong></li>
-            <li>Report type: <strong>Sponsored Products</strong></li>
-            <li>Report: <strong>Search Term</strong></li>
-            <li>Time period: <strong>Last 30 Days</strong></li>
-            <li>Click <strong>Run Report</strong>, then download when ready</li>
+            <li>Click <strong>Measurement &amp; Reporting</strong> &rarr; <strong>Sponsored Products</strong></li>
+            <li>Click <strong>Create Report</strong>, set time period to <strong>Last 30 Days</strong></li>
+            <li>Click <strong>Run Report</strong> (generation may take a few minutes &mdash; you can opt in for an email notification)</li>
+            <li>Return to the reports overview page and <strong>download the .xlsx file</strong></li>
         </ol>
-        <div class="modal-note">This report shows which search terms customers used, what you spent, and which terms converted into orders.</div>
+        <a class="modal-link" id="link2" href="https://advertising.amazon.de/reports" target="_blank">Open in Advertising Console &rarr;</a>
+        <div class="modal-note">Shows which search terms customers used, what you spent per term, and which terms converted into orders.</div>
     </div>
 </div>
 
@@ -625,11 +677,13 @@ input[type="file"] {
         <p class="modal-subtitle">Stock levels, sell-through, and excess inventory</p>
         <ol class="steps">
             <li>Open <strong>Seller Central</strong></li>
-            <li>Go to <strong>Inventory</strong> &rarr; <strong>Inventory Planning</strong></li>
-            <li>Click <strong>Inventory Health</strong> (or <strong>FBA Inventory</strong>)</li>
-            <li>Click <strong>Download</strong> (top right of the table)</li>
+            <li>Go to <strong>Inventory</strong> &rarr; <strong>FBA Inventory</strong> &rarr; <strong>Reports</strong></li>
+            <li>Select <strong>Inventory Report</strong></li>
+            <li>Click <strong>Request .csv download</strong></li>
+            <li><strong>Download</strong> once the report has been generated</li>
         </ol>
-        <div class="modal-note">This report includes available units, weeks of cover, sell-through rates, and Amazon's own excess inventory flags.</div>
+        <a class="modal-link" id="link3" href="https://sellercentral.amazon.de/reportcentral/MANAGE_INVENTORY_HEALTH/1" target="_blank">Open in Seller Central &rarr;</a>
+        <div class="modal-note">Includes available units, weeks of cover, sell-through rates, and Amazon's own excess inventory flags per SKU.</div>
     </div>
 </div>
 
@@ -641,12 +695,13 @@ input[type="file"] {
         <p class="modal-subtitle">Return reasons and customer comments</p>
         <ol class="steps">
             <li>Open <strong>Seller Central</strong></li>
-            <li>Go to <strong>Reports</strong> &rarr; <strong>Fulfillment by Amazon</strong></li>
-            <li>In the left sidebar under <strong>Customer Concessions</strong>, click <strong>FBA Customer Returns</strong></li>
-            <li>Set the date range to <strong>Last 30 Days</strong></li>
-            <li>Click <strong>Generate Report</strong>, then download when ready</li>
+            <li>Go to <strong>Inventory</strong> &rarr; <strong>FBA Inventory</strong> &rarr; <strong>Reports</strong></li>
+            <li>Select <strong>FBA Customer Returns</strong></li>
+            <li>Set the date range to <strong>Last 30 Days</strong> and click <strong>Request .csv download</strong></li>
+            <li><strong>Download</strong> once the report has been generated</li>
         </ol>
-        <div class="modal-note">This report shows every return with the customer's stated reason and optional comments — critical for identifying listing or packaging issues.</div>
+        <a class="modal-link" id="link4" href="https://sellercentral.amazon.de/reportcentral/CUSTOMER_RETURNS/1" target="_blank">Open in Seller Central &rarr;</a>
+        <div class="modal-note">Shows every return with the customer's stated reason and optional comments — essential for identifying listing or packaging issues.</div>
     </div>
 </div>
 
@@ -713,6 +768,17 @@ document.getElementById('uploadForm').addEventListener('submit', function(e) {
         }
     }, 90000);
 });
+
+// Marketplace link updater
+function updateMarketplaceLinks() {
+    var tld = document.getElementById('marketplacePicker').value;
+    var sc = 'sellercentral.amazon.' + tld;
+    var ad = 'advertising.amazon.' + tld;
+    document.getElementById('link1').href = 'https://' + sc + '/business-reports';
+    document.getElementById('link2').href = 'https://' + ad + '/reports';
+    document.getElementById('link3').href = 'https://' + sc + '/reportcentral/MANAGE_INVENTORY_HEALTH/1';
+    document.getElementById('link4').href = 'https://' + sc + '/reportcentral/CUSTOMER_RETURNS/1';
+}
 
 // Close modal on Escape
 document.addEventListener('keydown', function(e) {
