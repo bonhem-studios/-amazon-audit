@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Amazon Watchdog — Local Audit Pipeline
+Amazon Performance Audit — Local Audit Pipeline
 Reads 4 Amazon Seller Central reports, summarizes, calls Claude, generates PDF.
 """
 
@@ -1139,14 +1139,14 @@ def build_pdf(audit_result, summaries, output_path, is_paid=True):
                 S["UpgradeCTA"]
             ))
             elements.append(Paragraph(
-                "Upgrade to Amazon Watchdog Pro for EUR 29/month to unlock all findings, "
+                "Upgrade to Amazon Performance Audit Pro for EUR 29/month to unlock all findings, "
                 "detailed recommendations, and monthly automated audits.",
                 ParagraphStyle("_u2", fontName="Helvetica", fontSize=10,
                                leading=14, textColor=INK_LIGHT, alignment=TA_CENTER,
                                spaceAfter=4*mm)
             ))
             elements.append(Paragraph(
-                "amazonwatchdog.com/upgrade",
+                "launchdd.com/upgrade",
                 ParagraphStyle("_u3", fontName="Helvetica-Bold", fontSize=11,
                                textColor=ACCENT, alignment=TA_CENTER)
             ))
@@ -1296,7 +1296,7 @@ def build_pdf(audit_result, summaries, output_path, is_paid=True):
     ))
     elements.append(Spacer(1, 2*mm))
     elements.append(Paragraph(
-        "<b>Amazon Watchdog</b>&nbsp;&nbsp;|&nbsp;&nbsp;amazonwatchdog.com",
+        "<b>Amazon Performance Audit</b>&nbsp;&nbsp;|&nbsp;&nbsp;launchdd.com",
         ParagraphStyle("_brand", fontName="Helvetica", fontSize=8,
                        leading=10, textColor=INK)
     ))
@@ -1308,7 +1308,7 @@ def build_pdf(audit_result, summaries, output_path, is_paid=True):
 # ─── MAIN PIPELINE ─────────────────────────────────────────────────────────────
 
 def main():
-    print("\n🔍 Amazon Watchdog — Audit Pipeline\n")
+    print("\n🔍 Amazon Performance Audit — Audit Pipeline\n")
 
     # Discover files
     data_dir = SAMPLE_DATA_DIR

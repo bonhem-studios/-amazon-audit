@@ -1,5 +1,5 @@
 """
-Amazon Watchdog — Web App (Flask)
+Amazon Performance Audit — Web App (Flask)
 Upload CSVs → get premium HTML audit report.
 """
 
@@ -62,7 +62,7 @@ UPLOAD_PAGE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Amazon Watchdog — Performance Audit</title>
+<title>Amazon Performance Audit — Performance Audit</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -135,6 +135,170 @@ input[type="file"] {
     margin-top: 16px;
     line-height: 1.6;
 }
+/* Report instruction cards */
+.report-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.report-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.report-card:hover { border-color: #2563eb; background: #f8faff; }
+.report-icon {
+    width: 28px; height: 28px;
+    background: #1a1a2e;
+    color: white;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.report-info { flex: 1; min-width: 0; }
+.report-info strong { display: block; font-size: 13px; line-height: 1.3; }
+.report-info span { font-size: 11px; color: #9ca3af; }
+.report-help {
+    font-size: 11px;
+    color: #2563eb;
+    width: 100%;
+    text-align: right;
+    margin-top: -4px;
+}
+
+/* Upload drop zone */
+.upload-card {
+    background: white;
+    border: 2px dashed #d1d5db;
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    transition: all 0.2s;
+    cursor: pointer;
+    position: relative;
+}
+.upload-card:hover { border-color: #2563eb; background: #f8faff; }
+.upload-icon { margin-bottom: 12px; }
+.upload-card p { font-size: 14px; color: #6b7280; margin-bottom: 4px; }
+.upload-hint { font-size: 12px; color: #9ca3af; }
+.upload-card input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+.file-list { margin-top: 12px; text-align: left; }
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 6px;
+    margin-top: 6px;
+    font-size: 13px;
+}
+.file-size { color: #9ca3af; }
+
+/* Modal */
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+.modal.active { opacity: 1; pointer-events: all; }
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(4px);
+}
+.modal-content {
+    position: relative;
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 480px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.15);
+    transform: translateY(10px);
+    transition: transform 0.2s;
+}
+.modal.active .modal-content { transform: translateY(0); }
+.modal-close {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #9ca3af;
+    cursor: pointer;
+    line-height: 1;
+}
+.modal-close:hover { color: #1a1a2e; }
+.modal-content h3 { font-size: 20px; margin-bottom: 4px; }
+.modal-subtitle { font-size: 13px; color: #9ca3af; margin-bottom: 20px; }
+.steps {
+    list-style: none;
+    padding: 0;
+    counter-reset: step;
+}
+.steps li {
+    counter-increment: step;
+    padding: 10px 0 10px 36px;
+    position: relative;
+    font-size: 14px;
+    line-height: 1.5;
+    border-bottom: 1px solid #f3f4f6;
+}
+.steps li:last-child { border-bottom: none; }
+.steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 10px;
+    width: 24px;
+    height: 24px;
+    background: #eff6ff;
+    color: #2563eb;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.modal-note {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border-radius: 8px;
+    font-size: 12px;
+    color: #6b7280;
+    line-height: 1.5;
+}
+
 .error {
     background: #fef2f2;
     border: 1px solid #fecaca;
@@ -163,7 +327,7 @@ input[type="file"] {
 <body>
 <div class="container">
     <div class="hero">
-        <div class="brand">Amazon Watchdog</div>
+        <div class="brand">Amazon Performance Audit</div>
         <h1>Amazon Performance<br>Audit</h1>
         <p class="subtitle">Upload your Seller Central reports. Get an independent analysis in under 60 seconds.</p>
     </div>
@@ -173,11 +337,55 @@ input[type="file"] {
     {% endif %}
 
     <form method="POST" action="/upload" enctype="multipart/form-data" id="uploadForm">
+
+        <div class="report-cards">
+            <div class="report-card" onclick="document.getElementById('helpModal1').classList.add('active')">
+                <div class="report-icon">1</div>
+                <div class="report-info">
+                    <strong>Business Report</strong>
+                    <span>Sales & Traffic by ASIN</span>
+                </div>
+                <div class="report-help">How to download &#8250;</div>
+            </div>
+
+            <div class="report-card" onclick="document.getElementById('helpModal2').classList.add('active')">
+                <div class="report-icon">2</div>
+                <div class="report-info">
+                    <strong>Search Term Report</strong>
+                    <span>Sponsored Products PPC</span>
+                </div>
+                <div class="report-help">How to download &#8250;</div>
+            </div>
+
+            <div class="report-card" onclick="document.getElementById('helpModal3').classList.add('active')">
+                <div class="report-icon">3</div>
+                <div class="report-info">
+                    <strong>Inventory Health</strong>
+                    <span>FBA Stock Levels</span>
+                </div>
+                <div class="report-help">How to download &#8250;</div>
+            </div>
+
+            <div class="report-card" onclick="document.getElementById('helpModal4').classList.add('active')">
+                <div class="report-icon">4</div>
+                <div class="report-info">
+                    <strong>Customer Returns</strong>
+                    <span>FBA Return Reasons</span>
+                </div>
+                <div class="report-help">How to download &#8250;</div>
+            </div>
+        </div>
+
         <div class="upload-card">
-            <h3>Upload your reports</h3>
-            <p>Select 1-4 CSV or XLSX files from Seller Central.<br>
-            Business Report, Search Term Report, Inventory Health, Customer Returns.</p>
-            <input type="file" name="files" multiple accept=".csv,.xlsx,.xls,.txt" required>
+            <div class="upload-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                </svg>
+            </div>
+            <p>Drop your files here or click to browse</p>
+            <span class="upload-hint">CSV or XLSX &middot; 1-4 files &middot; auto-detected</span>
+            <input type="file" name="files" multiple accept=".csv,.xlsx,.xls,.txt" required id="fileInput">
+            <div id="fileList" class="file-list"></div>
         </div>
 
         <button type="submit" class="submit-btn" id="submitBtn">Run Audit</button>
@@ -189,10 +397,100 @@ input[type="file"] {
     </p>
 </div>
 
+<!-- INSTRUCTION MODALS -->
+<div class="modal" id="helpModal1">
+    <div class="modal-backdrop" onclick="this.parentElement.classList.remove('active')"></div>
+    <div class="modal-content">
+        <button class="modal-close" onclick="this.parentElement.parentElement.classList.remove('active')">&times;</button>
+        <h3>Business Report</h3>
+        <p class="modal-subtitle">Detail Page Sales and Traffic by ASIN</p>
+        <ol class="steps">
+            <li>Open <strong>Seller Central</strong></li>
+            <li>Go to <strong>Reports</strong> &rarr; <strong>Business Reports</strong></li>
+            <li>In the left sidebar, click <strong>"Detail Page Sales and Traffic by Child Item"</strong></li>
+            <li>Set the date range to <strong>Last 30 Days</strong> (or a full calendar month)</li>
+            <li>Click <strong>Download (.csv)</strong></li>
+        </ol>
+        <div class="modal-note">This report contains your revenue, sessions, conversion rate, and Buy Box percentage per ASIN.</div>
+    </div>
+</div>
+
+<div class="modal" id="helpModal2">
+    <div class="modal-backdrop" onclick="this.parentElement.classList.remove('active')"></div>
+    <div class="modal-content">
+        <button class="modal-close" onclick="this.parentElement.parentElement.classList.remove('active')">&times;</button>
+        <h3>Sponsored Products Search Term Report</h3>
+        <p class="modal-subtitle">PPC advertising performance by search term</p>
+        <ol class="steps">
+            <li>Open <strong>Seller Central</strong></li>
+            <li>Go to <strong>Advertising</strong> &rarr; <strong>Campaign Manager</strong></li>
+            <li>Click the <strong>Reports</strong> tab (top navigation)</li>
+            <li>Click <strong>Create Report</strong></li>
+            <li>Report type: <strong>Sponsored Products</strong></li>
+            <li>Report: <strong>Search Term</strong></li>
+            <li>Time period: <strong>Last 30 Days</strong></li>
+            <li>Click <strong>Run Report</strong>, then download when ready</li>
+        </ol>
+        <div class="modal-note">This report shows which search terms customers used, what you spent, and which terms converted into orders.</div>
+    </div>
+</div>
+
+<div class="modal" id="helpModal3">
+    <div class="modal-backdrop" onclick="this.parentElement.classList.remove('active')"></div>
+    <div class="modal-content">
+        <button class="modal-close" onclick="this.parentElement.parentElement.classList.remove('active')">&times;</button>
+        <h3>FBA Inventory Health Report</h3>
+        <p class="modal-subtitle">Stock levels, sell-through, and excess inventory</p>
+        <ol class="steps">
+            <li>Open <strong>Seller Central</strong></li>
+            <li>Go to <strong>Inventory</strong> &rarr; <strong>Inventory Planning</strong></li>
+            <li>Click <strong>Inventory Health</strong> (or <strong>FBA Inventory</strong>)</li>
+            <li>Click <strong>Download</strong> (top right of the table)</li>
+        </ol>
+        <div class="modal-note">This report includes available units, weeks of cover, sell-through rates, and Amazon's own excess inventory flags.</div>
+    </div>
+</div>
+
+<div class="modal" id="helpModal4">
+    <div class="modal-backdrop" onclick="this.parentElement.classList.remove('active')"></div>
+    <div class="modal-content">
+        <button class="modal-close" onclick="this.parentElement.parentElement.classList.remove('active')">&times;</button>
+        <h3>FBA Customer Returns Report</h3>
+        <p class="modal-subtitle">Return reasons and customer comments</p>
+        <ol class="steps">
+            <li>Open <strong>Seller Central</strong></li>
+            <li>Go to <strong>Reports</strong> &rarr; <strong>Fulfillment by Amazon</strong></li>
+            <li>In the left sidebar under <strong>Customer Concessions</strong>, click <strong>FBA Customer Returns</strong></li>
+            <li>Set the date range to <strong>Last 30 Days</strong></li>
+            <li>Click <strong>Generate Report</strong>, then download when ready</li>
+        </ol>
+        <div class="modal-note">This report shows every return with the customer's stated reason and optional comments — critical for identifying listing or packaging issues.</div>
+    </div>
+</div>
+
 <script>
+// File upload preview
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    var list = document.getElementById('fileList');
+    list.innerHTML = '';
+    for (var i = 0; i < e.target.files.length; i++) {
+        var f = e.target.files[i];
+        var size = (f.size / 1024).toFixed(0) + ' KB';
+        list.innerHTML += '<div class="file-item"><span>' + f.name + '</span><span class="file-size">' + size + '</span></div>';
+    }
+});
+
+// Submit state
 document.getElementById('uploadForm').addEventListener('submit', function() {
     document.getElementById('submitBtn').disabled = true;
-    document.getElementById('submitBtn').textContent = 'Analyzing... (up to 60 seconds)';
+    document.getElementById('submitBtn').textContent = 'Analyzing... this takes up to 60 seconds';
+});
+
+// Close modal on Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal.active').forEach(function(m) { m.classList.remove('active'); });
+    }
 });
 </script>
 </body>

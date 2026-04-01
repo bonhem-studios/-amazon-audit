@@ -1,5 +1,5 @@
 """
-Amazon Watchdog — Premium HTML Report Generator (Amazon Performance Audit)
+Amazon Performance Audit — Premium HTML Report Generator (Amazon Performance Audit)
 Apple-inspired design. Opens in browser, prints to PDF.
 """
 
@@ -284,7 +284,7 @@ def generate_html(audit_result, summaries, is_paid=True):
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Amazon Watchdog — Performance Audit</title>
+<title>Amazon Performance Audit — Performance Audit</title>
 <style>
 /* ═══ RESET & BASE ═══ */
 *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
@@ -965,7 +965,7 @@ section {{
 <!-- HERO / COVER -->
 <section class="hero">
 <div class="container">
-    <div class="brand">Amazon Watchdog</div>
+    <div class="brand">Amazon Performance Audit</div>
     <h1>Amazon Performance<br>Audit</h1>
     <p class="subtitle">Independent analysis of your Seller Central data</p>
 
@@ -1064,9 +1064,9 @@ section {{
 <div class="container">
     <p>This analysis is based on the data you provided and does not constitute financial or business advice.<br>
     Estimated impacts are directional projections — actual results may vary. Your data was deleted immediately after processing.</p>
-    <p style="margin-top: 12px;"><strong>Amazon Watchdog</strong> &middot; amazonwatchdog.com</p>
+    <p style="margin-top: 12px;"><strong>Amazon Performance Audit</strong> by Launchdd</p>
     <p style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 11px;">
-    Coming soon: <strong>Fully automated weekly audits</strong> — connect your Seller Central account and receive performance reports automatically. No more manual downloads.</p>
+    Coming soon: <strong>Fully automated weekly audits</strong> — connect your Seller Central account and get performance reports automatically. No more manual downloads.</p>
 </div>
 </footer>
 
