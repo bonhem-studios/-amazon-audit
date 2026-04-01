@@ -356,13 +356,20 @@ section {{
     background: var(--border-strong);
 }}
 
-.brand {{
-    font-size: 11px;
-    letter-spacing: 4px;
+.brand-link {{
+    display: inline-block;
+    font-size: 13px;
+    letter-spacing: 5px;
     text-transform: uppercase;
-    color: var(--ink-muted);
+    color: var(--ink);
     margin-bottom: 16px;
-    font-weight: 500;
+    font-weight: 800;
+    text-decoration: none;
+    transition: opacity 0.2s;
+}}
+
+.brand-link:hover {{
+    opacity: 0.6;
 }}
 
 .hero h1 {{
@@ -1042,7 +1049,7 @@ section {{
 <!-- HERO / COVER -->
 <section class="hero">
 <div class="container">
-    <div class="brand">Amazon Performance Audit</div>
+    <a href="/" class="brand-link">LAUNCHDD</a>
     <h1>Amazon Performance<br>Audit</h1>
     <p class="subtitle">Independent analysis of your Seller Central data</p>
 
