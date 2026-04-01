@@ -299,6 +299,121 @@ input[type="file"] {
     line-height: 1.5;
 }
 
+/* Progress overlay */
+.progress-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(250,250,250,0.97);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+.progress-overlay.active { opacity: 1; pointer-events: all; }
+.progress-box {
+    text-align: center;
+    max-width: 440px;
+    width: 90%;
+}
+.progress-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #1a1a2e;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 24px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.progress-box h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.progress-sub {
+    font-size: 14px;
+    color: #9ca3af;
+    margin-bottom: 32px;
+}
+.progress-steps {
+    text-align: left;
+    margin: 0 auto;
+    max-width: 360px;
+}
+.progress-step {
+    display: flex;
+    gap: 14px;
+    padding: 12px 0;
+    opacity: 0.3;
+    transition: opacity 0.4s;
+}
+.progress-step.done { opacity: 1; }
+.progress-step.active { opacity: 1; }
+.step-dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #d1d5db;
+    flex-shrink: 0;
+    margin-top: 2px;
+    position: relative;
+    transition: all 0.3s;
+}
+.progress-step.active .step-dot {
+    border-color: #2563eb;
+    background: #2563eb;
+    animation: pulse-dot 1.5s ease-in-out infinite;
+}
+.progress-step.active .step-dot::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    background: white;
+    border-radius: 50%;
+}
+.progress-step.done:not(.active) .step-dot {
+    border-color: #059669;
+    background: #059669;
+}
+.progress-step.done:not(.active) .step-dot::after {
+    content: '\\2713';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+}
+@keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.3); }
+    50% { box-shadow: 0 0 0 8px rgba(37,99,235,0); }
+}
+.step-text strong {
+    display: block;
+    font-size: 13px;
+    color: #1a1a2e;
+    line-height: 1.3;
+}
+.step-text span {
+    font-size: 12px;
+    color: #9ca3af;
+}
+.progress-warn {
+    margin-top: 24px;
+    font-size: 13px;
+    color: #d97706;
+    background: #fffbeb;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid #fde68a;
+}
+
 .error {
     background: #fef2f2;
     border: 1px solid #fecaca;
@@ -397,6 +512,48 @@ input[type="file"] {
     </p>
 </div>
 
+<!-- PROGRESS OVERLAY -->
+<div class="progress-overlay" id="progressOverlay">
+    <div class="progress-box">
+        <div class="progress-spinner"></div>
+        <h2>Analyzing your data</h2>
+        <p class="progress-sub">This usually takes 30-60 seconds</p>
+
+        <div class="progress-steps">
+            <div class="progress-step active" id="step1">
+                <div class="step-dot"></div>
+                <div class="step-text">
+                    <strong>Uploading & validating files</strong>
+                    <span>Checking column structure, detecting report types</span>
+                </div>
+            </div>
+            <div class="progress-step" id="step2">
+                <div class="step-dot"></div>
+                <div class="step-text">
+                    <strong>Cross-referencing reports</strong>
+                    <span>Aggregating at ASIN level, computing inventory & return metrics</span>
+                </div>
+            </div>
+            <div class="progress-step" id="step3">
+                <div class="step-dot"></div>
+                <div class="step-text">
+                    <strong>AI analysis in progress</strong>
+                    <span>Identifying findings, estimating impact, generating recommendations</span>
+                </div>
+            </div>
+            <div class="progress-step" id="step4">
+                <div class="step-dot"></div>
+                <div class="step-text">
+                    <strong>Building your report</strong>
+                    <span>Almost done...</span>
+                </div>
+            </div>
+        </div>
+
+        <p class="progress-warn" id="progressWarn" style="display:none;">Taking a bit longer than usual — large datasets need more time. Please wait...</p>
+    </div>
+</div>
+
 <!-- INSTRUCTION MODALS -->
 <div class="modal" id="helpModal1">
     <div class="modal-backdrop" onclick="this.parentElement.classList.remove('active')"></div>
@@ -480,10 +637,38 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
     }
 });
 
-// Submit state
-document.getElementById('uploadForm').addEventListener('submit', function() {
+// Submit with progress overlay
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    var files = document.getElementById('fileInput').files;
+    if (!files.length) return;
+
     document.getElementById('submitBtn').disabled = true;
-    document.getElementById('submitBtn').textContent = 'Analyzing... this takes up to 60 seconds';
+    document.getElementById('progressOverlay').classList.add('active');
+
+    // Animate steps
+    var steps = document.querySelectorAll('.progress-step');
+    var timings = [0, 3000, 10000, 40000]; // when each step activates
+    timings.forEach(function(t, i) {
+        setTimeout(function() {
+            if (i > 0) steps[i-1].classList.remove('active');
+            steps[i].classList.add('active');
+            steps[i].classList.add('done');
+        }, t);
+    });
+
+    // Timeout warning after 50s
+    setTimeout(function() {
+        var warn = document.getElementById('progressWarn');
+        if (warn) warn.style.display = 'block';
+    }, 50000);
+
+    // Hard timeout after 90s — show error
+    setTimeout(function() {
+        var overlay = document.getElementById('progressOverlay');
+        if (overlay.classList.contains('active')) {
+            overlay.innerHTML = '<div class="progress-box"><h2>This is taking longer than expected</h2><p style="color:#6b7280;margin:12px 0 24px;">The analysis may still be running. Please wait another minute or <a href="/" style="color:#2563eb;">try again</a>.</p></div>';
+        }
+    }, 90000);
 });
 
 // Close modal on Escape
