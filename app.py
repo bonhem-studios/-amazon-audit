@@ -562,7 +562,7 @@ input[type="file"] {
             <div class="progress-step" id="step3">
                 <div class="step-dot"></div>
                 <div class="step-text">
-                    <strong>AI analysis in progress</strong>
+                    <strong>Analysis in progress</strong>
                     <span>Identifying findings, estimating impact, generating recommendations</span>
                 </div>
             </div>
@@ -832,7 +832,7 @@ a.retry {
         </div>
         <div class="step" id="s4">
             <div class="step-dot"></div>
-            <div class="step-label"><strong>AI analysis</strong><span>Identifying findings, estimating impact</span></div>
+            <div class="step-label"><strong>Analysis</strong><span>Identifying findings, estimating impact</span></div>
         </div>
         <div class="step" id="s5">
             <div class="step-dot"></div>
@@ -850,7 +850,7 @@ var stepMap = {
     'Starting': 's2',
     'Parsing files': 's2',
     'Cross-referencing data': 's3',
-    'AI analysis': 's4',
+    'Analysis': 's4',
     'Building report': 's5',
     'Complete': 's5'
 };
@@ -975,7 +975,7 @@ def process_audit_background(audit_id, saved_files):
             jobs[audit_id] = {"status": "error", "step": "", "error": "ANTHROPIC_API_KEY not configured."}
             return
 
-        jobs[audit_id]["step"] = "AI analysis"
+        jobs[audit_id]["step"] = "Analysis"
         logger.info(f"[{audit_id}] Calling Claude API...")
         audit_result = call_claude(claude_input)
         logger.info(f"[{audit_id}] Claude returned {len(audit_result.get('findings', []))} findings")

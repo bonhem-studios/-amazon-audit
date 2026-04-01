@@ -710,7 +710,7 @@ def call_claude(audit_input: str) -> dict:
 
     response = client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=8192,
+        max_tokens=4096,
         temperature=0.2,
         system=SYSTEM_PROMPT,
         messages=[{
