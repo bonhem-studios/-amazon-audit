@@ -934,6 +934,83 @@ section {{
     margin-right: auto;
 }}
 
+/* ═══ ACTION BAR ═══ */
+.action-bar-section {{
+    padding: 32px 0;
+}}
+
+.action-bar {{
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}}
+
+.action-btn {{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    border-radius: 100px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    text-decoration: none;
+    font-family: inherit;
+}}
+
+.action-btn.primary {{
+    background: var(--ink);
+    color: white;
+}}
+
+.action-btn.primary:hover {{
+    background: #374151;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}}
+
+.action-btn.secondary {{
+    background: var(--white);
+    color: var(--ink);
+    border: 1px solid var(--border-strong);
+}}
+
+.action-btn.secondary:hover {{
+    background: var(--bg);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}}
+
+.toast {{
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--ink);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 100px;
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s;
+    z-index: 9999;
+}}
+
+.toast.show {{
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}}
+
+@media print {{
+    .action-bar-section {{ display: none; }}
+    .toast {{ display: none; }}
+}}
+
 /* ═══ FOOTER ═══ */
 .footer {{
     padding: 40px 0;
@@ -1059,6 +1136,26 @@ section {{
 <!-- RECOMMENDATIONS -->
 {"<section><div class='container'><div class='section-header'><div class='section-number'>04 &mdash; Next Steps</div><h2>Prioritized Recommendations</h2><div class='section-divider'></div></div>" + recs_html + "</div></section>" if is_paid and recs_html else ""}
 
+<!-- ACTION BAR -->
+<section class="action-bar-section">
+<div class="container">
+    <div class="action-bar">
+        <button class="action-btn primary" onclick="window.print()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Save as PDF
+        </button>
+        <button class="action-btn secondary" onclick="shareReport()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            Share Report
+        </button>
+        <a class="action-btn secondary" href="/">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7-7 7 7"/></svg>
+            New Audit
+        </a>
+    </div>
+</div>
+</section>
+
 <!-- FOOTER -->
 <footer class="footer">
 <div class="container">
@@ -1069,6 +1166,26 @@ section {{
     Coming soon: <strong>Fully automated weekly audits</strong> — connect your Seller Central account and get performance reports automatically. No more manual downloads.</p>
 </div>
 </footer>
+
+<!-- Copied toast -->
+<div class="toast" id="toast">Link copied to clipboard</div>
+
+<script>
+function shareReport() {{
+    var url = window.location.href;
+    if (navigator.share) {{
+        navigator.share({{ title: 'Amazon Performance Audit', url: url }});
+    }} else if (navigator.clipboard) {{
+        navigator.clipboard.writeText(url).then(function() {{
+            var toast = document.getElementById('toast');
+            toast.classList.add('show');
+            setTimeout(function() {{ toast.classList.remove('show'); }}, 2500);
+        }});
+    }} else {{
+        prompt('Copy this link:', url);
+    }}
+}}
+</script>
 
 </body>
 </html>"""

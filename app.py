@@ -753,7 +753,7 @@ body {
     display: flex; align-items: center; justify-content: center; min-height: 100vh;
     -webkit-font-smoothing: antialiased;
 }
-.box { text-align: center; max-width: 440px; width: 90%; }
+.box { text-align: center; max-width: 480px; width: 90%; }
 .spinner {
     width: 48px; height: 48px;
     border: 3px solid #e5e7eb; border-top-color: #1a1a2e;
@@ -762,40 +762,119 @@ body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 h1 { font-size: 22px; margin-bottom: 6px; }
-.sub { font-size: 14px; color: #9ca3af; margin-bottom: 24px; }
-.step-text {
-    font-size: 14px; color: #6b7280;
-    padding: 8px 16px; background: #f3f4f6;
-    border-radius: 8px; display: inline-block;
-    transition: all 0.3s;
+.sub { font-size: 14px; color: #9ca3af; margin-bottom: 32px; }
+
+.steps { text-align: left; max-width: 380px; margin: 0 auto; }
+.step {
+    display: flex; gap: 14px; padding: 10px 0;
+    opacity: 0.25; transition: opacity 0.4s;
 }
-.step-text.done { background: #ecfdf5; color: #059669; }
+.step.active, .step.done { opacity: 1; }
+.step-dot {
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 2px solid #d1d5db; flex-shrink: 0; margin-top: 1px;
+    position: relative; transition: all 0.3s;
+}
+.step.active .step-dot {
+    border-color: #2563eb; background: #2563eb;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+.step.active .step-dot::after {
+    content: ''; position: absolute; inset: 4px;
+    background: white; border-radius: 50%;
+}
+.step.done .step-dot {
+    border-color: #059669; background: #059669;
+}
+.step.done .step-dot::after {
+    content: '\\2713'; position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 12px; font-weight: bold;
+}
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.3); }
+    50% { box-shadow: 0 0 0 8px rgba(37,99,235,0); }
+}
+.step-label strong { display: block; font-size: 13px; }
+.step-label span { font-size: 12px; color: #9ca3af; }
+
+.elapsed { font-size: 12px; color: #d1d5db; margin-top: 20px; }
 .error-box {
     background: #fef2f2; border: 1px solid #fecaca;
     color: #dc2626; padding: 16px; border-radius: 10px;
     margin-top: 16px; font-size: 13px; line-height: 1.5;
+    text-align: left;
 }
 a.retry {
     display: inline-block; margin-top: 20px; padding: 12px 24px;
     background: #1a1a2e; color: white; text-decoration: none;
     border-radius: 8px; font-size: 14px; font-weight: 600;
 }
-.elapsed { font-size: 12px; color: #d1d5db; margin-top: 16px; }
 </style>
 </head><body>
 <div class="box" id="content">
     <div class="spinner" id="spinner"></div>
     <h1>Analyzing your data</h1>
     <p class="sub">This may take a few minutes depending on data size</p>
-    <div class="step-text" id="stepText">Starting...</div>
+
+    <div class="steps">
+        <div class="step done" id="s1">
+            <div class="step-dot"></div>
+            <div class="step-label"><strong>Files uploaded</strong><span>Reports saved securely</span></div>
+        </div>
+        <div class="step" id="s2">
+            <div class="step-dot"></div>
+            <div class="step-label"><strong>Parsing & validating</strong><span>Detecting report types, checking structure</span></div>
+        </div>
+        <div class="step" id="s3">
+            <div class="step-dot"></div>
+            <div class="step-label"><strong>Cross-referencing data</strong><span>Aggregating at ASIN level across reports</span></div>
+        </div>
+        <div class="step" id="s4">
+            <div class="step-dot"></div>
+            <div class="step-label"><strong>AI analysis</strong><span>Identifying findings, estimating impact</span></div>
+        </div>
+        <div class="step" id="s5">
+            <div class="step-dot"></div>
+            <div class="step-label"><strong>Building report</strong><span>Generating your performance audit</span></div>
+        </div>
+    </div>
+
     <div class="elapsed" id="elapsed"></div>
 </div>
 <script>
 var auditId = "{{ audit_id }}";
 var startTime = Date.now();
 
+var stepMap = {
+    'Starting': 's2',
+    'Parsing files': 's2',
+    'Cross-referencing data': 's3',
+    'AI analysis': 's4',
+    'Building report': 's5',
+    'Complete': 's5'
+};
+var stepOrder = ['s1','s2','s3','s4','s5'];
+var currentStep = 's1';
+
+function setStep(stepId) {
+    // Mark all previous steps as done, current as active
+    var reached = false;
+    for (var i = 0; i < stepOrder.length; i++) {
+        var el = document.getElementById(stepOrder[i]);
+        if (stepOrder[i] === stepId) {
+            reached = true;
+            el.className = 'step active';
+        } else if (!reached) {
+            el.className = 'step done';
+        } else {
+            el.className = 'step';
+        }
+    }
+    currentStep = stepId;
+}
+
 function poll() {
-    // Update elapsed time
     var secs = Math.floor((Date.now() - startTime) / 1000);
     document.getElementById('elapsed').textContent = secs + 's elapsed';
 
@@ -803,10 +882,14 @@ function poll() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.status === 'done') {
-                document.getElementById('stepText').textContent = 'Done!';
-                document.getElementById('stepText').className = 'step-text done';
+                // Mark all done
+                for (var i = 0; i < stepOrder.length; i++) {
+                    document.getElementById(stepOrder[i]).className = 'step done';
+                }
                 document.getElementById('spinner').style.display = 'none';
-                window.location.href = '/report/' + auditId + '/full';
+                setTimeout(function() {
+                    window.location.href = '/report/' + auditId + '/full';
+                }, 800);
             } else if (data.status === 'error') {
                 document.getElementById('spinner').style.display = 'none';
                 document.getElementById('content').innerHTML =
@@ -814,7 +897,8 @@ function poll() {
                     '<div class="error-box">' + (data.error || 'Unknown error') + '</div>' +
                     '<a class="retry" href="/">Try Again</a>';
             } else {
-                document.getElementById('stepText').textContent = data.step || 'Processing...';
+                var target = stepMap[data.step] || currentStep;
+                setStep(target);
                 setTimeout(poll, 2000);
             }
         })
@@ -823,6 +907,7 @@ function poll() {
         });
 }
 
+setStep('s2');
 setTimeout(poll, 1000);
 </script>
 </body></html>"""
