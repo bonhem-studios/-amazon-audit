@@ -7,10 +7,11 @@ import os
 import uuid
 import json
 import shutil
+import threading
 from pathlib import Path
 from datetime import datetime
 
-from flask import Flask, request, redirect, url_for, render_template_string, send_file, abort
+from flask import Flask, request, redirect, url_for, render_template_string, send_file, abort, jsonify
 
 # Import our pipeline modules
 from run_audit import (
@@ -40,6 +41,9 @@ MAX_ROWS_FREE = {
 }
 MAX_AUDITS_PER_DAY = 20  # total across all users for cost control
 daily_audit_count = {"date": "", "count": 0}
+
+# Job tracking for async processing
+jobs = {}  # audit_id -> {"status": "processing"|"done"|"error", "error": str, "step": str}
 
 
 def check_daily_limit():
@@ -702,6 +706,94 @@ a { display: inline-block; padding: 12px 24px; background: #1a1a2e; color: white
 </div></body></html>"""
 
 
+PROCESSING_PAGE = """<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analyzing — Amazon Performance Audit</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    background: #fafafa; color: #1a1a2e;
+    display: flex; align-items: center; justify-content: center; min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+.box { text-align: center; max-width: 440px; width: 90%; }
+.spinner {
+    width: 48px; height: 48px;
+    border: 3px solid #e5e7eb; border-top-color: #1a1a2e;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    margin: 0 auto 24px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+h1 { font-size: 22px; margin-bottom: 6px; }
+.sub { font-size: 14px; color: #9ca3af; margin-bottom: 24px; }
+.step-text {
+    font-size: 14px; color: #6b7280;
+    padding: 8px 16px; background: #f3f4f6;
+    border-radius: 8px; display: inline-block;
+    transition: all 0.3s;
+}
+.step-text.done { background: #ecfdf5; color: #059669; }
+.error-box {
+    background: #fef2f2; border: 1px solid #fecaca;
+    color: #dc2626; padding: 16px; border-radius: 10px;
+    margin-top: 16px; font-size: 13px; line-height: 1.5;
+}
+a.retry {
+    display: inline-block; margin-top: 20px; padding: 12px 24px;
+    background: #1a1a2e; color: white; text-decoration: none;
+    border-radius: 8px; font-size: 14px; font-weight: 600;
+}
+.elapsed { font-size: 12px; color: #d1d5db; margin-top: 16px; }
+</style>
+</head><body>
+<div class="box" id="content">
+    <div class="spinner" id="spinner"></div>
+    <h1>Analyzing your data</h1>
+    <p class="sub">This usually takes 30-60 seconds</p>
+    <div class="step-text" id="stepText">Starting...</div>
+    <div class="elapsed" id="elapsed"></div>
+</div>
+<script>
+var auditId = "{{ audit_id }}";
+var startTime = Date.now();
+
+function poll() {
+    // Update elapsed time
+    var secs = Math.floor((Date.now() - startTime) / 1000);
+    document.getElementById('elapsed').textContent = secs + 's elapsed';
+
+    fetch('/api/status/' + auditId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'done') {
+                document.getElementById('stepText').textContent = 'Done!';
+                document.getElementById('stepText').className = 'step-text done';
+                document.getElementById('spinner').style.display = 'none';
+                window.location.href = '/report/' + auditId + '/full';
+            } else if (data.status === 'error') {
+                document.getElementById('spinner').style.display = 'none';
+                document.getElementById('content').innerHTML =
+                    '<h1>Analysis failed</h1>' +
+                    '<div class="error-box">' + (data.error || 'Unknown error') + '</div>' +
+                    '<a class="retry" href="/">Try Again</a>';
+            } else {
+                document.getElementById('stepText').textContent = data.step || 'Processing...';
+                setTimeout(poll, 2000);
+            }
+        })
+        .catch(function() {
+            setTimeout(poll, 3000);
+        });
+}
+
+setTimeout(poll, 1000);
+</script>
+</body></html>"""
+
+
 # ─── ROUTES ────────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -709,9 +801,98 @@ def index():
     return render_template_string(UPLOAD_PAGE, error=None)
 
 
+def process_audit_background(audit_id, saved_files):
+    """Run the full audit pipeline in a background thread."""
+    try:
+        jobs[audit_id] = {"status": "processing", "step": "Parsing files", "error": None}
+
+        # Parse and detect
+        logger.info(f"[{audit_id}] Parsing and detecting report types...")
+        reports = {}
+        for filepath in saved_files:
+            try:
+                rtype, headers, rows = load_and_detect(filepath)
+                if rtype:
+                    max_rows = MAX_ROWS_FREE.get(rtype, 1000)
+                    if len(rows) > max_rows:
+                        rows = rows[:max_rows]
+                    reports[rtype] = {"headers": headers, "rows": rows}
+                    logger.info(f"[{audit_id}] Detected: {rtype} ({len(rows)} rows)")
+            except Exception as e:
+                logger.error(f"[{audit_id}] Error parsing {filepath}: {e}")
+
+        if not reports:
+            jobs[audit_id] = {"status": "error", "step": "", "error": "No recognized Amazon reports found in the uploaded files."}
+            return
+
+        # Summarize
+        jobs[audit_id]["step"] = "Cross-referencing data"
+        logger.info(f"[{audit_id}] Summarizing {len(reports)} reports...")
+        summaries = {}
+        biz_summary = None
+        if "business_report" in reports:
+            biz_summary = summarize_business_report(reports["business_report"]["rows"])
+            summaries["business_report"] = biz_summary
+        ppc_summary = None
+        if "search_term_report" in reports:
+            ppc_summary = summarize_search_terms(reports["search_term_report"]["rows"])
+            summaries["search_term_report"] = ppc_summary
+        inv_summary = None
+        if "inventory_health" in reports:
+            inv_summary = summarize_inventory(reports["inventory_health"]["rows"])
+            summaries["inventory_health"] = inv_summary
+        ret_summary = None
+        if "customer_returns" in reports:
+            biz_asin_map = biz_summary.get("asinMap") if biz_summary else None
+            ret_summary = summarize_returns(reports["customer_returns"]["rows"], biz_asin_map)
+            summaries["customer_returns"] = ret_summary
+
+        flags = compute_cross_report_flags(biz_summary, ppc_summary, inv_summary, ret_summary)
+        claude_input = build_claude_input(biz_summary, ppc_summary, inv_summary, ret_summary, flags, list(reports.keys()))
+
+        # Call Claude
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            jobs[audit_id] = {"status": "error", "step": "", "error": "ANTHROPIC_API_KEY not configured."}
+            return
+
+        jobs[audit_id]["step"] = "AI analysis"
+        logger.info(f"[{audit_id}] Calling Claude API...")
+        audit_result = call_claude(claude_input)
+        logger.info(f"[{audit_id}] Claude returned {len(audit_result.get('findings', []))} findings")
+        increment_daily_count()
+
+        # Generate reports
+        jobs[audit_id]["step"] = "Building report"
+        html_full = generate_html(audit_result, summaries, is_paid=True)
+        html_free = generate_html(audit_result, summaries, is_paid=False)
+
+        OUTPUT_DIR.mkdir(exist_ok=True)
+        with open(OUTPUT_DIR / f"{audit_id}_full.html", "w", encoding="utf-8") as f:
+            f.write(html_full)
+        with open(OUTPUT_DIR / f"{audit_id}_free.html", "w", encoding="utf-8") as f:
+            f.write(html_free)
+        with open(OUTPUT_DIR / f"{audit_id}_output.json", "w") as f:
+            json.dump(audit_result, f, indent=2, default=str)
+
+        jobs[audit_id] = {"status": "done", "step": "Complete", "error": None}
+        logger.info(f"[{audit_id}] DONE")
+
+    except Exception as e:
+        logger.error(f"[{audit_id}] FATAL: {traceback.format_exc()}")
+        jobs[audit_id] = {"status": "error", "step": "", "error": str(e)[:300]}
+
+    finally:
+        # Clean up uploaded files
+        for fp in saved_files:
+            try:
+                os.remove(fp)
+            except Exception:
+                pass
+
+
 @app.route("/upload", methods=["POST"])
 def upload():
-    # Check daily limit
     if not check_daily_limit():
         return render_template_string(ERROR_PAGE,
             title="Daily limit reached",
@@ -722,129 +903,46 @@ def upload():
     if not files or all(f.filename == "" for f in files):
         return render_template_string(UPLOAD_PAGE, error="Please select at least one file.")
 
-    # Create temp directory for this audit
     audit_id = str(uuid.uuid4())[:8]
     audit_dir = UPLOAD_DIR / audit_id
     audit_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        # Save uploaded files
-        logger.info(f"[{audit_id}] Saving {len(files)} files...")
-        saved = []
-        for f in files:
-            if f.filename:
-                safe_name = f"{uuid.uuid4().hex[:8]}_{Path(f.filename).suffix}"
-                filepath = audit_dir / safe_name
-                f.save(str(filepath))
-                saved.append(str(filepath))
-                logger.info(f"[{audit_id}] Saved: {f.filename} -> {safe_name}")
+    # Save files immediately (fast — no timeout risk)
+    saved = []
+    for f in files:
+        if f.filename:
+            safe_name = f"{uuid.uuid4().hex[:8]}_{Path(f.filename).suffix}"
+            filepath = audit_dir / safe_name
+            f.save(str(filepath))
+            saved.append(str(filepath))
+            logger.info(f"[{audit_id}] Saved: {f.filename}")
 
-        if not saved:
-            return render_template_string(UPLOAD_PAGE, error="No valid files uploaded.")
+    if not saved:
+        return render_template_string(UPLOAD_PAGE, error="No valid files uploaded.")
 
-        # Parse and detect
-        logger.info(f"[{audit_id}] Parsing and detecting report types...")
-        reports = {}
-        for filepath in saved:
-            try:
-                rtype, headers, rows = load_and_detect(filepath)
-                if rtype:
-                    max_rows = MAX_ROWS_FREE.get(rtype, 1000)
-                    if len(rows) > max_rows:
-                        rows = rows[:max_rows]
-                    reports[rtype] = {"headers": headers, "rows": rows}
-                    logger.info(f"[{audit_id}] Detected: {rtype} ({len(rows)} rows)")
-                else:
-                    logger.warning(f"[{audit_id}] Could not detect type for {filepath}")
-            except Exception as e:
-                logger.error(f"[{audit_id}] Error parsing {filepath}: {e}")
+    # Start processing in background thread (avoids Railway timeout)
+    jobs[audit_id] = {"status": "processing", "step": "Starting", "error": None}
+    thread = threading.Thread(target=process_audit_background, args=(audit_id, saved))
+    thread.daemon = True
+    thread.start()
 
-        if not reports:
-            return render_template_string(ERROR_PAGE,
-                title="Unrecognized files",
-                message="None of the uploaded files could be identified as Amazon Seller Central reports. Please check that you're uploading the correct CSV/XLSX files."
-            )
+    # Redirect to polling page immediately (fast response = no timeout)
+    return redirect(url_for("processing_page", audit_id=audit_id))
 
-        # Summarize
-        logger.info(f"[{audit_id}] Summarizing {len(reports)} reports...")
-        summaries = {}
-        biz_summary = None
-        if "business_report" in reports:
-            biz_summary = summarize_business_report(reports["business_report"]["rows"])
-            summaries["business_report"] = biz_summary
 
-        ppc_summary = None
-        if "search_term_report" in reports:
-            ppc_summary = summarize_search_terms(reports["search_term_report"]["rows"])
-            summaries["search_term_report"] = ppc_summary
+@app.route("/processing/<audit_id>")
+def processing_page(audit_id):
+    """Page that polls for job completion."""
+    return render_template_string(PROCESSING_PAGE, audit_id=audit_id)
 
-        inv_summary = None
-        if "inventory_health" in reports:
-            inv_summary = summarize_inventory(reports["inventory_health"]["rows"])
-            summaries["inventory_health"] = inv_summary
 
-        ret_summary = None
-        if "customer_returns" in reports:
-            biz_asin_map = biz_summary.get("asinMap") if biz_summary else None
-            ret_summary = summarize_returns(reports["customer_returns"]["rows"], biz_asin_map)
-            summaries["customer_returns"] = ret_summary
-
-        # Cross-report flags
-        flags = compute_cross_report_flags(biz_summary, ppc_summary, inv_summary, ret_summary)
-        logger.info(f"[{audit_id}] {len(flags)} cross-report flags found")
-
-        # Build Claude input
-        claude_input = build_claude_input(
-            biz_summary, ppc_summary, inv_summary, ret_summary,
-            flags, list(reports.keys())
-        )
-
-        # Call Claude
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            logger.error(f"[{audit_id}] No ANTHROPIC_API_KEY set!")
-            return render_template_string(ERROR_PAGE,
-                title="Configuration error",
-                message="The AI analysis service is not configured. Please contact the admin."
-            )
-
-        logger.info(f"[{audit_id}] Calling Claude API...")
-        audit_result = call_claude(claude_input)
-        logger.info(f"[{audit_id}] Claude returned {len(audit_result.get('findings', []))} findings")
-        increment_daily_count()
-
-        # Generate HTML report
-        logger.info(f"[{audit_id}] Generating HTML reports...")
-        html_full = generate_html(audit_result, summaries, is_paid=True)
-        html_free = generate_html(audit_result, summaries, is_paid=False)
-
-        # Save reports
-        OUTPUT_DIR.mkdir(exist_ok=True)
-        full_path = OUTPUT_DIR / f"{audit_id}_full.html"
-        free_path = OUTPUT_DIR / f"{audit_id}_free.html"
-        with open(full_path, "w", encoding="utf-8") as f:
-            f.write(html_full)
-        with open(free_path, "w", encoding="utf-8") as f:
-            f.write(html_free)
-
-        # Save JSON for debugging
-        json_path = OUTPUT_DIR / f"{audit_id}_output.json"
-        with open(json_path, "w") as f:
-            json.dump(audit_result, f, indent=2, default=str)
-
-        logger.info(f"[{audit_id}] DONE — redirecting to report")
-        return redirect(url_for("view_report", audit_id=audit_id, version="full"))
-
-    except Exception as e:
-        logger.error(f"[{audit_id}] FATAL ERROR: {traceback.format_exc()}")
-        return render_template_string(ERROR_PAGE,
-            title="Analysis failed",
-            message=f"Something went wrong during the analysis. Error: {str(e)[:200]}. Please try again or contact support."
-        ), 500
-
-    finally:
-        # Always delete uploaded files immediately
-        shutil.rmtree(audit_dir, ignore_errors=True)
+@app.route("/api/status/<audit_id>")
+def job_status(audit_id):
+    """API endpoint for polling job status."""
+    job = jobs.get(audit_id)
+    if not job:
+        return jsonify({"status": "not_found"}), 404
+    return jsonify(job)
 
 
 @app.route("/report/<audit_id>/<version>")
