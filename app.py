@@ -23,6 +23,11 @@ from report_template import generate_html
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max total upload
 
+import logging
+import traceback
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 UPLOAD_DIR = Path(__file__).parent / "uploads"
 OUTPUT_DIR = Path(__file__).parent / "output"
 
@@ -724,6 +729,7 @@ def upload():
 
     try:
         # Save uploaded files
+        logger.info(f"[{audit_id}] Saving {len(files)} files...")
         saved = []
         for f in files:
             if f.filename:
@@ -731,20 +737,27 @@ def upload():
                 filepath = audit_dir / safe_name
                 f.save(str(filepath))
                 saved.append(str(filepath))
+                logger.info(f"[{audit_id}] Saved: {f.filename} -> {safe_name}")
 
         if not saved:
             return render_template_string(UPLOAD_PAGE, error="No valid files uploaded.")
 
         # Parse and detect
+        logger.info(f"[{audit_id}] Parsing and detecting report types...")
         reports = {}
         for filepath in saved:
-            rtype, headers, rows = load_and_detect(filepath)
-            if rtype:
-                # Apply row limits for cost control
-                max_rows = MAX_ROWS_FREE.get(rtype, 1000)
-                if len(rows) > max_rows:
-                    rows = rows[:max_rows]
-                reports[rtype] = {"headers": headers, "rows": rows}
+            try:
+                rtype, headers, rows = load_and_detect(filepath)
+                if rtype:
+                    max_rows = MAX_ROWS_FREE.get(rtype, 1000)
+                    if len(rows) > max_rows:
+                        rows = rows[:max_rows]
+                    reports[rtype] = {"headers": headers, "rows": rows}
+                    logger.info(f"[{audit_id}] Detected: {rtype} ({len(rows)} rows)")
+                else:
+                    logger.warning(f"[{audit_id}] Could not detect type for {filepath}")
+            except Exception as e:
+                logger.error(f"[{audit_id}] Error parsing {filepath}: {e}")
 
         if not reports:
             return render_template_string(ERROR_PAGE,
@@ -753,6 +766,7 @@ def upload():
             )
 
         # Summarize
+        logger.info(f"[{audit_id}] Summarizing {len(reports)} reports...")
         summaries = {}
         biz_summary = None
         if "business_report" in reports:
@@ -777,6 +791,7 @@ def upload():
 
         # Cross-report flags
         flags = compute_cross_report_flags(biz_summary, ppc_summary, inv_summary, ret_summary)
+        logger.info(f"[{audit_id}] {len(flags)} cross-report flags found")
 
         # Build Claude input
         claude_input = build_claude_input(
@@ -787,15 +802,19 @@ def upload():
         # Call Claude
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
         if not api_key:
+            logger.error(f"[{audit_id}] No ANTHROPIC_API_KEY set!")
             return render_template_string(ERROR_PAGE,
                 title="Configuration error",
                 message="The AI analysis service is not configured. Please contact the admin."
             )
 
+        logger.info(f"[{audit_id}] Calling Claude API...")
         audit_result = call_claude(claude_input)
+        logger.info(f"[{audit_id}] Claude returned {len(audit_result.get('findings', []))} findings")
         increment_daily_count()
 
         # Generate HTML report
+        logger.info(f"[{audit_id}] Generating HTML reports...")
         html_full = generate_html(audit_result, summaries, is_paid=True)
         html_free = generate_html(audit_result, summaries, is_paid=False)
 
@@ -813,9 +832,15 @@ def upload():
         with open(json_path, "w") as f:
             json.dump(audit_result, f, indent=2, default=str)
 
-        # Redirect to free report (full report behind paywall in production)
-        # For testing: show full report
+        logger.info(f"[{audit_id}] DONE — redirecting to report")
         return redirect(url_for("view_report", audit_id=audit_id, version="full"))
+
+    except Exception as e:
+        logger.error(f"[{audit_id}] FATAL ERROR: {traceback.format_exc()}")
+        return render_template_string(ERROR_PAGE,
+            title="Analysis failed",
+            message=f"Something went wrong during the analysis. Error: {str(e)[:200]}. Please try again or contact support."
+        ), 500
 
     finally:
         # Always delete uploaded files immediately
