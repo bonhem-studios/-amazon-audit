@@ -136,7 +136,18 @@ input[type="file"] {
     transition: all 0.2s;
 }
 .submit-btn:hover { background: #374151; transform: translateY(-1px); }
-.submit-btn:disabled { background: #9ca3af; cursor: not-allowed; transform: none; }
+.submit-btn:disabled { background: #d1d5db; color: #9ca3af; cursor: not-allowed; transform: none; }
+.file-count-warning {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 16px;
+    text-align: center;
+}
 .note {
     text-align: center;
     font-size: 12px;
@@ -507,12 +518,17 @@ input[type="file"] {
                 </svg>
             </div>
             <p>Drop your files here or click to browse</p>
-            <span class="upload-hint">CSV or XLSX &middot; 1-4 files &middot; auto-detected</span>
+            <span class="upload-hint">CSV or XLSX &middot; all 4 reports required &middot; auto-detected</span>
             <input type="file" name="files" multiple accept=".csv,.xlsx,.xls,.txt" required id="fileInput">
             <div id="fileList" class="file-list"></div>
         </div>
 
-        <button type="submit" class="submit-btn" id="submitBtn">Run Audit</button>
+        <div class="file-count-warning" id="fileWarning" style="display:none;">
+            <strong>Please upload all 4 reports</strong> for a complete analysis.
+            Click the report cards above to see where to download each one.
+        </div>
+
+        <button type="submit" class="submit-btn" id="submitBtn" disabled>Upload all 4 reports to start</button>
     </form>
 
     <p class="note">
@@ -635,14 +651,32 @@ input[type="file"] {
 </div>
 
 <script>
-// File upload preview
+// File upload preview + 4-file validation
 document.getElementById('fileInput').addEventListener('change', function(e) {
     var list = document.getElementById('fileList');
+    var btn = document.getElementById('submitBtn');
+    var warn = document.getElementById('fileWarning');
+    var count = e.target.files.length;
+
     list.innerHTML = '';
-    for (var i = 0; i < e.target.files.length; i++) {
+    for (var i = 0; i < count; i++) {
         var f = e.target.files[i];
         var size = (f.size / 1024).toFixed(0) + ' KB';
         list.innerHTML += '<div class="file-item"><span>' + f.name + '</span><span class="file-size">' + size + '</span></div>';
+    }
+
+    if (count >= 4) {
+        btn.disabled = false;
+        btn.textContent = 'Run Audit';
+        warn.style.display = 'none';
+    } else if (count > 0) {
+        btn.disabled = true;
+        btn.textContent = count + ' of 4 reports uploaded';
+        warn.style.display = 'block';
+    } else {
+        btn.disabled = true;
+        btn.textContent = 'Upload all 4 reports to start';
+        warn.style.display = 'none';
     }
 });
 
@@ -919,6 +953,11 @@ def upload():
 
     if not saved:
         return render_template_string(UPLOAD_PAGE, error="No valid files uploaded.")
+
+    if len(saved) < 4:
+        shutil.rmtree(audit_dir, ignore_errors=True)
+        return render_template_string(UPLOAD_PAGE,
+            error=f"Please upload all 4 reports. You uploaded {len(saved)} file(s). Click the report cards to see where to download each one.")
 
     # Start processing in background thread (avoids Railway timeout)
     jobs[audit_id] = {"status": "processing", "step": "Starting", "error": None}
