@@ -651,7 +651,7 @@ Rules:
 
 
 def build_claude_input(biz, ppc, inv, ret, flags, reports_provided) -> str:
-    """Build the user prompt for Claude."""
+    """Build the user prompt for Claude. Keep it compact — every char costs tokens and time."""
     data = {
         "reportsProvided": reports_provided,
         "reportsMissing": [r for r in ["business_report", "search_term_report",
@@ -660,26 +660,56 @@ def build_claude_input(biz, ppc, inv, ret, flags, reports_provided) -> str:
         "crossReportFlags": flags,
     }
     if biz:
-        # Send summary without the full asinMap to keep tokens low
-        biz_send = {k: v for k, v in biz.items() if k != "asinMap"}
-        data["businessReport"] = biz_send
+        data["businessReport"] = {
+            "totalRevenue": biz["totalRevenue"],
+            "totalUnits": biz["totalUnits"],
+            "totalSessions": biz["totalSessions"],
+            "avgConversion": biz["avgConversion"],
+            "topAsinsByRevenue": biz["topAsinsByRevenue"][:15],
+            "lowBuyBoxAsins": biz["lowBuyBoxAsins"][:10],
+            "highConversionAsins": biz["highConversionAsins"][:10],
+            "revenueConcentration": biz["revenueConcentration"],
+        }
     if ppc:
-        data["searchTermReport"] = ppc
+        data["searchTermReport"] = {
+            "totalSpend": ppc["totalSpend"],
+            "totalSales": ppc["totalSales"],
+            "overallAcos": ppc["overallAcos"],
+            "totalClicks": ppc["totalClicks"],
+            "wastedSpend": ppc["wastedSpend"][:10],
+            "totalWastedEur": ppc["totalWastedEur"],
+            "highAcosTerms": ppc["highAcosTerms"][:10],
+            "topPerformingTerms": ppc["topPerformingTerms"][:5],
+            "matchTypeDistribution": ppc["matchTypeDistribution"],
+            "asinAdSpend": dict(list(ppc["asinAdSpend"].items())[:15]),
+        }
     if inv:
-        data["inventoryHealth"] = inv
+        data["inventoryHealth"] = {
+            "totalSkus": inv["totalSkus"],
+            "totalAsins": inv.get("totalAsins", 0),
+            "totalAvailableUnits": inv["totalAvailableUnits"],
+            "lowStockAsins": inv["lowStockAsins"][:10],
+            "excessInventoryAsins": inv["excessInventoryAsins"][:10],
+        }
     if ret:
-        data["customerReturns"] = ret
+        data["customerReturns"] = {
+            "totalReturns": ret["totalReturns"],
+            "totalUnitsReturned": ret["totalUnitsReturned"],
+            "returnsByAsin": ret["returnsByAsin"][:10],
+            "reasonBreakdown": ret["reasonBreakdown"][:8],
+            "notAsDescribedRate": ret["notAsDescribedRate"],
+        }
 
-    return json.dumps(data, indent=2, default=str)
+    return json.dumps(data, default=str)
 
 
 def call_claude(audit_input: str) -> dict:
     """Call Claude API and return parsed JSON."""
     client = Anthropic()
-    print("  Calling Claude API (claude-sonnet-4-6)...")
+    print("  Calling Claude API (claude-sonnet-4-20250514)...")
 
     response = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-sonnet-4-20250514",
         max_tokens=8192,
         temperature=0.2,
         system=SYSTEM_PROMPT,

@@ -542,7 +542,7 @@ input[type="file"] {
     <div class="progress-box">
         <div class="progress-spinner"></div>
         <h2>Analyzing your data</h2>
-        <p class="progress-sub">This usually takes 30-60 seconds</p>
+        <p class="progress-sub">This may take a few minutes depending on data size</p>
 
         <div class="progress-steps">
             <div class="progress-step active" id="step1">
@@ -786,7 +786,7 @@ a.retry {
 <div class="box" id="content">
     <div class="spinner" id="spinner"></div>
     <h1>Analyzing your data</h1>
-    <p class="sub">This usually takes 30-60 seconds</p>
+    <p class="sub">This may take a few minutes depending on data size</p>
     <div class="step-text" id="stepText">Starting...</div>
     <div class="elapsed" id="elapsed"></div>
 </div>
